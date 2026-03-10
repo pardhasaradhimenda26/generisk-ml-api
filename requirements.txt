@@ -5,3 +5,5 @@ numpy
 pandas
 joblib
 gunicorn
+xgboost
+lightgbm
