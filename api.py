@@ -1,5 +1,6 @@
 # ─────────────────────────────────────────
-# GeneRisk AI — Flask ML API
+# GeneRisk AI — Advanced Flask ML API
+# Best Model: XGBoost (97.37% accuracy)
 # ─────────────────────────────────────────
 
 from flask import Flask, request, jsonify
@@ -12,23 +13,38 @@ app = Flask(__name__)
 CORS(app)
 
 # Load models
-print("Loading GeneRisk ML models...")
-model   = joblib.load('models/generisk_model.pkl')
-scaler  = joblib.load('models/scaler.pkl')
-le      = joblib.load('models/label_encoder.pkl')
+print("Loading GeneRisk Advanced ML models...")
+model    = joblib.load('models/generisk_model.pkl')
+scaler   = joblib.load('models/scaler.pkl')
+le       = joblib.load('models/label_encoder.pkl')
+selector = joblib.load('models/feature_selector.pkl')
 
 with open('models/metadata.json') as f:
     metadata = json.load(f)
 
-FEATURES = metadata['features']
-print(f"Model loaded! Accuracy: {metadata['accuracy']*100:.2f}%")
-print(f"Features expected: {len(FEATURES)}")
+with open('models/selected_features.json') as f:
+    SELECTED_FEATURES = json.load(f)
+
+ALL_FEATURES = [
+    'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean',
+    'smoothness_mean', 'compactness_mean', 'concavity_mean',
+    'concave points_mean', 'symmetry_mean', 'fractal_dimension_mean',
+    'radius_se', 'texture_se', 'perimeter_se', 'area_se',
+    'smoothness_se', 'compactness_se', 'concavity_se',
+    'concave points_se', 'symmetry_se', 'fractal_dimension_se',
+    'radius_worst', 'texture_worst', 'perimeter_worst', 'area_worst',
+    'smoothness_worst', 'compactness_worst', 'concavity_worst',
+    'concave points_worst', 'symmetry_worst', 'fractal_dimension_worst'
+]
+
+print(f"Best model: {metadata['best_model']}")
+print(f"Accuracy: {metadata['accuracy']*100:.2f}%")
+print(f"ROC-AUC: {metadata['roc_auc']:.4f}")
 
 # ─────────────────────────────────────────
-# Feature mapping — map gene mutations
-# to Wisconsin breast cancer features
+# Gene → Feature mapping
 # ─────────────────────────────────────────
-GENE_FEATURE_MAP = {
+GENE_PROFILES = {
     'BRCA1': {
         'radius_mean': 17.99, 'texture_mean': 10.38,
         'perimeter_mean': 122.8, 'area_mean': 1001.0,
@@ -84,7 +100,7 @@ GENE_FEATURE_MAP = {
         'radius_mean': 9.029, 'texture_mean': 17.33,
         'perimeter_mean': 58.79, 'area_mean': 250.5,
         'smoothness_mean': 0.1066, 'compactness_mean': 0.1413,
-        'concavity_mean': 0.313, 'concave points_mean': 0.0,
+        'concavity_mean': 0.0313, 'concave points_mean': 0.0,
         'symmetry_mean': 0.1599, 'fractal_dimension_mean': 0.05943,
         'radius_se': 0.2217, 'texture_se': 1.952,
         'perimeter_se': 1.41, 'area_se': 12.47,
@@ -99,89 +115,67 @@ GENE_FEATURE_MAP = {
     }
 }
 
+CANCER_SCORES = {
+    'BRCA1': {'breast':75, 'lung':20, 'colon':15, 'ovarian':60, 'blood':15},
+    'TP53':  {'breast':30, 'lung':65, 'colon':55, 'ovarian':25, 'blood':50},
+    'KRAS':  {'breast':20, 'lung':70, 'colon':65, 'ovarian':15, 'blood':20},
+    'NONE':  {'breast':12, 'lung':10, 'colon':11, 'ovarian':10, 'blood':10}
+}
+
 EXPLANATIONS = {
-    'BRCA1': {
-        'title': 'BRCA1 Tumor Suppressor Mutation Detected',
-        'explanation': 'The BRCA1 mutation disrupts the tumor suppressor gene responsible for DNA damage repair. Our Random Forest model (97.37% accuracy) identifies this as a high-risk genomic pattern associated with elevated breast and ovarian cancer probability. Based on ClinVar reference NC_000017.11, carriers have significantly elevated lifetime cancer risk. Early screening and genetic counseling are strongly recommended.',
-        'risk_level': 'HIGH'
-    },
-    'TP53': {
-        'title': 'TP53 Guardian Gene Mutation Detected',
-        'explanation': 'The TP53 mutation affects the primary genome guardian gene responsible for regulating cell division and preventing tumor formation. Our ML model identifies this pattern as strongly associated with elevated risk across multiple cancer types. Referenced in COSMIC database as the most frequently mutated gene in human cancer. Regular oncology screening is advised.',
-        'risk_level': 'HIGH'
-    },
-    'KRAS': {
-        'title': 'KRAS Oncogene Mutation Detected',
-        'explanation': 'The KRAS oncogene mutation drives uncontrolled cell proliferation. Our trained Random Forest classifier identifies this genomic pattern as associated with elevated lung and colon cancer risk. Present in approximately 30% of all human cancers according to COSMIC v98. Modern targeted therapies have significantly improved outcomes with early detection.',
-        'risk_level': 'HIGH'
-    },
-    'NONE': {
-        'title': 'No High-Risk Mutations Detected',
-        'explanation': 'No high-risk mutation patterns were detected in your DNA sample. Our Random Forest model predicts baseline cancer risk levels within normal genomic ranges. Continue maintaining regular health checkups and a healthy lifestyle as preventive measures.',
-        'risk_level': 'LOW'
-    }
+    'BRCA1': 'The BRCA1 mutation disrupts the tumor suppressor gene responsible for DNA damage repair. Our XGBoost model (97.37% accuracy) identifies this as a high-risk genomic pattern strongly associated with elevated breast and ovarian cancer probability. Based on ClinVar reference NC_000017.11, carriers have significantly elevated lifetime cancer risk. Early screening and genetic counseling are strongly recommended.',
+    'TP53':  'The TP53 mutation affects the primary genome guardian gene responsible for regulating cell division and preventing tumor formation. Our advanced ML model identifies this pattern as strongly associated with elevated risk across multiple cancer types. Referenced in COSMIC database as the most frequently mutated gene in human cancer.',
+    'KRAS':  'The KRAS oncogene mutation drives uncontrolled cell proliferation. Our XGBoost classifier identifies this genomic pattern as associated with elevated lung and colon cancer risk. Present in approximately 30% of all human cancers according to COSMIC v98.',
+    'NONE':  'No high-risk mutations detected in your DNA sample. Our advanced ML model predicts baseline cancer risk levels within normal genomic ranges. Continue maintaining regular health checkups and a healthy lifestyle.'
 }
 
 @app.route('/predict', methods=['POST'])
 def predict():
     data      = request.json
     mutations = data.get('mutations', [])
+    primary   = mutations[0] if mutations else 'NONE'
+    primary   = primary if primary in GENE_PROFILES else 'NONE'
 
-    # Pick dominant mutation or NONE
-    primary = mutations[0] if mutations else 'NONE'
-    primary = primary if primary in GENE_FEATURE_MAP else 'NONE'
+    # Build full feature vector
+    profile  = GENE_PROFILES[primary]
+    features = np.array([[profile[f] for f in ALL_FEATURES]])
 
-    # Build feature vector
-    feature_map = GENE_FEATURE_MAP[primary]
-    features    = [[feature_map[f] for f in FEATURES]]
+    # Apply feature selection + scaling
+    features_selected = selector.transform(features)
+    features_scaled   = scaler.transform(features_selected)
 
-    # Scale and predict
-    features_scaled = scaler.transform(features)
-    prediction      = model.predict(features_scaled)[0]
-    probability     = model.predict_proba(features_scaled)[0]
-
+    # Predict
+    prediction = model.predict(features_scaled)[0]
+    probability = model.predict_proba(features_scaled)[0]
     label      = le.inverse_transform([prediction])[0]
     confidence = round(float(max(probability)) * 100, 1)
-
-    # Cancer risk scores based on mutation
-    risk_scores = {
-        'BRCA1': {'breast': 75, 'lung': 20, 'colon': 15,
-                  'ovarian': 60, 'blood': 15},
-        'TP53':  {'breast': 30, 'lung': 65, 'colon': 55,
-                  'ovarian': 25, 'blood': 50},
-        'KRAS':  {'breast': 20, 'lung': 70, 'colon': 65,
-                  'ovarian': 15, 'blood': 20},
-        'NONE':  {'breast': 12, 'lung': 10, 'colon': 11,
-                  'ovarian': 10, 'blood': 10}
-    }
-
-    scores      = risk_scores.get(primary, risk_scores['NONE'])
-    explanation = EXPLANATIONS.get(primary, EXPLANATIONS['NONE'])
+    risk_level = 'HIGH' if label == 'M' else 'LOW'
 
     return jsonify({
-        'prediction': label,
-        'confidence': confidence,
-        'risk_level': explanation['risk_level'],
-        'scores': scores,
-        'explanation': explanation['explanation'],
-        'title': explanation['title'],
+        'prediction':        label,
+        'confidence':        confidence,
+        'risk_level':        risk_level,
+        'scores':            CANCER_SCORES.get(primary, CANCER_SCORES['NONE']),
+        'explanation':       EXPLANATIONS.get(primary, EXPLANATIONS['NONE']),
         'detected_mutations': mutations,
         'model_info': {
-            'name': 'GeneRisk Random Forest Classifier',
-            'accuracy': '97.37%',
-            'roc_auc': '0.9970',
-            'algorithm': 'Random Forest (200 estimators)',
-            'dataset': 'Wisconsin Breast Cancer Dataset (UCI)',
-            'training_samples': 455
+            'best_model':       metadata['best_model'],
+            'accuracy':         f"{metadata['accuracy']*100:.2f}%",
+            'roc_auc':          metadata['roc_auc'],
+            'algorithm':        'XGBoost Classifier',
+            'dataset':          'Wisconsin Breast Cancer (UCI)',
+            'training_samples': 455,
+            'all_models': metadata['all_results']
         }
     })
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
-        'status': 'GeneRisk ML API is running',
-        'accuracy': '97.37%',
-        'model': 'Random Forest Classifier'
+        'status':     'GeneRisk Advanced ML API running',
+        'best_model': metadata['best_model'],
+        'accuracy':   f"{metadata['accuracy']*100:.2f}%",
+        'roc_auc':    metadata['roc_auc']
     })
 
 @app.route('/model-info', methods=['GET'])
@@ -189,7 +183,6 @@ def model_info():
     return jsonify(metadata)
 
 if __name__ == '__main__':
-    print("\nGeneRisk ML API starting...")
+    print("\nGeneRisk Advanced ML API starting...")
     print("URL: http://localhost:5000")
-    print("Health: http://localhost:5000/health")
     app.run(port=5000, debug=True)

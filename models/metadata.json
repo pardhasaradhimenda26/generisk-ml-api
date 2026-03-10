@@ -1,33 +1,21 @@
 {
-  "model": "Random Forest Classifier",
+  "best_model": "XGBoost",
   "accuracy": 0.9737,
-  "roc_auc": 0.997,
-  "cv_score_mean": 0.9578,
-  "cv_score_std": 0.0179,
-  "n_estimators": 200,
-  "training_samples": 455,
-  "testing_samples": 114,
+  "roc_auc": 0.995,
+  "cv_score_mean": 0.9596,
+  "cv_score_std": 0.0044,
   "features": [
     "radius_mean",
     "texture_mean",
     "perimeter_mean",
     "area_mean",
-    "smoothness_mean",
     "compactness_mean",
     "concavity_mean",
     "concave points_mean",
-    "symmetry_mean",
-    "fractal_dimension_mean",
     "radius_se",
-    "texture_se",
     "perimeter_se",
     "area_se",
-    "smoothness_se",
-    "compactness_se",
-    "concavity_se",
     "concave points_se",
-    "symmetry_se",
-    "fractal_dimension_se",
     "radius_worst",
     "texture_worst",
     "perimeter_worst",
@@ -36,11 +24,41 @@
     "compactness_worst",
     "concavity_worst",
     "concave points_worst",
-    "symmetry_worst",
-    "fractal_dimension_worst"
+    "symmetry_worst"
   ],
-  "classes": [
-    "B",
-    "M"
-  ]
+  "n_features": 20,
+  "training_samples": 455,
+  "testing_samples": 114,
+  "all_results": {
+    "Random Forest": {
+      "accuracy": 0.9561,
+      "roc_auc": 0.9936,
+      "cv_mean": 0.9543,
+      "cv_std": 0.0187
+    },
+    "XGBoost": {
+      "accuracy": 0.9737,
+      "roc_auc": 0.995,
+      "cv_mean": 0.9596,
+      "cv_std": 0.0044
+    },
+    "LightGBM": {
+      "accuracy": 0.9737,
+      "roc_auc": 0.995,
+      "cv_mean": 0.9736,
+      "cv_std": 0.02
+    },
+    "SVM": {
+      "accuracy": 0.9825,
+      "roc_auc": 0.9937,
+      "cv_mean": 0.9719,
+      "cv_std": 0.0179
+    },
+    "Neural Network": {
+      "accuracy": 0.9386,
+      "roc_auc": 0.9927,
+      "cv_mean": 0.9544,
+      "cv_std": 0.0231
+    }
+  }
 }
